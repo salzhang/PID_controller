@@ -2,7 +2,7 @@
 
 module PID(input wire clk, input wire rst, 
 input wire [15:0] Kp_in,input wire [15:0] Ki_in,input wire [15:0] Kd_in,
-input wire [15:0] SV_in,input wire [15:0] PV_in,output wire [31:0] MV,output wire [2:0] of);
+input wire [15:0] SV_in,input wire [15:0] PV_in,output wire [31:0] MV,output wire [4:0] of);
     //SV: Set value     PV: Present value     MV:Manipulation value
 
     //Stage1
@@ -19,30 +19,30 @@ input wire [15:0] SV_in,input wire [15:0] PV_in,output wire [31:0] MV,output wir
     end
     
     //Calculate Kd*e(n-1)
-    wire [31:0] S1_pro; 
+    wire [31:0] S1_pro; wire [31:0] Kd_err_pre0;
     reg [15:0] error;
     Booth_Multiplier S1_Mul(.clk(clk),.rst(rst),.M(Kd),.Q(error),.product(S1_pro));
-    wire [31:0] Kd_err_pre0;
+    
      
 
     //Calculate Kp + Kd
-    wire [15:0] S1_sum1; 
+    wire [15:0] S1_sum1; wire [15:0] Kpd0;
     assign S1_sum1 = ($signed(Kp) + $signed(Kd)); 
     wire of_S1_sum1; //Overflow checking
     assign of_S1_sum1 = 
        ((Kp[15] == 1 && Kd[15] == 1 && S1_sum1[15] == 0) ||  // Negative + Negative = Positive
         (Kp[15] == 0 && Kd[15] == 0 && S1_sum1[15] == 1));   // Positive + Positive = Negative
-    wire [15:0] Kpd0;
+    
     
 
     //Calculate Current error
-    wire [15:0] S1_sum2;
+    wire [15:0] S1_sum2; wire [15:0] error0; 
     assign S1_sum2 = $signed(SV) - $signed(PV);
     wire of_S1_sum2; //Overflow checking
     assign of_S1_sum2 = 
        ((SV[15] == 0 && PV[15] == 1 && S1_sum2[15] == 1) ||  // Positive - Negative = Negative
         (SV[15] == 1 && PV[15] == 0 && S1_sum2[15] == 0));   // Negative - Positive = Positive
-    wire [15:0] error0; 
+    
     
 
     //Overflow of Stage 1
@@ -56,16 +56,19 @@ input wire [15:0] SV_in,input wire [15:0] PV_in,output wire [31:0] MV,output wir
 
     //Stage2
     reg [15:0] Kpd, Ki;
+    reg [3:0] OF_from_S1;
     always@(posedge clk) begin
         if(!rst) begin
             Kpd<=0;
             Ki<=0;
             error<=0;
+            OF_from_S1<=0;
         end
         else begin
             Kpd<=Kpd0;
             Ki<=Ki0;
             error<=error0;
+            OF_from_S1<= {2'b00,of_S1_sum2,of_S1_sum1};
         end
     end
 
@@ -85,30 +88,36 @@ input wire [15:0] SV_in,input wire [15:0] PV_in,output wire [31:0] MV,output wir
 
     //Stage3
     reg [31:0] Kd_err_pre1;
+    reg [3:0] OF_from_S2;
     always@(posedge clk) begin
         if(!rst) begin
             Kd_err_pre1<=0;
+            OF_from_S2<=0;
         end
         else begin
             Kd_err_pre1<=Kd_err_pre0;
+            OF_from_S2<=OF_from_S1;
         end
     end
 
     //Stage4
     reg [31:0] Kd_err_pre,Kpd_err,Sigma,Ki_err;
-    wire [31:0] New_Sigma; 
+    wire [31:0] New_Sigma;
+    reg [3:0] OF_from_S3; 
     always@(posedge clk) begin
         if(!rst) begin
             Kd_err_pre<=0;
             Kpd_err<=0;
             Sigma<=0;
             Ki_err<=0;
+            OF_from_S3<=0;
         end
         else begin
             Kd_err_pre<=Kd_err_pre1;
             Kpd_err<=Kpd_err0;
             Sigma<=New_Sigma;
             Ki_err<=Ki_err0;
+            OF_from_S3<=OF_from_S2;
         end
     end
     //Calculate PD =  Kpd*e(n) - Kd*e(n-1) 
@@ -140,14 +149,17 @@ input wire [15:0] SV_in,input wire [15:0] PV_in,output wire [31:0] MV,output wir
 
     //Stage5
     reg [31:0] PD,I;
+    reg [3:0] OF_from_S4;
     always@(posedge clk) begin
         if(!rst) begin
             PD<=0;
             I<=0;
+            OF_from_S4<=0;
         end
         else begin
             PD<=New_PD;
             I<=New_I;
+            OF_from_S4<={of_S4_sum2,of_S4_sum1,OF_from_S3[1:0]};
         end
     end
     //Calculate Manipulation Value 
@@ -158,5 +170,5 @@ input wire [15:0] SV_in,input wire [15:0] PV_in,output wire [31:0] MV,output wir
        ((PD[31] == 1 && I[31] == 1 && S5_sum[31] == 0) ||  // Negative + Negative = Positive
         (PD[31] == 0 && I[31] == 0 && S5_sum[31] == 1));   // Positive + Positive = Negative 
     assign MV = of_S5?0:S5_sum;
-    assign of = {of_S5,of_S4,of_S1};
+    assign of = {of_S5,OF_from_S4};
 endmodule
