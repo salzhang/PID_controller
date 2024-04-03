@@ -52,50 +52,50 @@ output[31:0]o_mv  //Output: manipulation value
     assign	we=i_wb_cyc&i_wb_we&i_wb_stb;
     wire	re;	//read enable
     assign	re=i_wb_cyc&(~i_wb_we)&i_wb_stb;
-	reg [wb_nb-1:0]rdata_reg;
+    reg [wb_nb-1:0]rdata_reg;
 
-	wire	[wb_nb-1:0]rdata[0:3];	//wishbone read data array
-	`ifdef	wb_16bit
+    wire [wb_nb-1:0]rdata[0:3];	//wishbone read data array
+    `ifdef 	wb_16bit
 	assign	rdata[0]=kp;
 	assign	rdata[1]=ki;
 	assign	rdata[2]=kd;
 	assign	rdata[3]=sv;
-	`endif
+    `endif
 
-	`ifdef	wb_32bit
+    `ifdef	wb_32bit
 	assign	rdata[0]={{16{kp[15]}},kp};
 	assign	rdata[1]={{16{ki[15]}},ki};
 	assign	rdata[2]={{16{kd[15]}},kd};
 	assign	rdata[3]={{16{sv[15]}},sv};
-	`endif
+    `endif
 
-	`ifdef	wb_64bit
+    `ifdef	wb_64bit
 	assign	rdata[0]={{48{kp[15]}},kp};
 	assign	rdata[1]={{48{ki[15]}},ki};
 	assign	rdata[2]={{48{kd[15]}},kd};
 	assign	rdata[3]={{48{sv[15]}},sv};
-	`endif
+    `endif
 
     wire	[1:0]adr; // address for write & read
     `ifdef wb_16bit
-    assign	adr=i_wb_adr[2:1];
+    	assign	adr=i_wb_adr[2:1];
     `endif
     `ifdef wb_32bit
-    assign	adr=i_wb_adr[3:2];
+    	assign	adr=i_wb_adr[3:2];
     `endif
     `ifdef wb_64bit
-    assign	adr=i_wb_adr[4:3];
+    	assign	adr=i_wb_adr[4:3];
     `endif
 
     wire	adr_check;	// A '1' means address is within the range of adr
     `ifdef wb_16bit
-    assign	adr_check=i_wb_adr[adr_wb_nb-1:3]==0&&i_wb_adr[0]==0;
+    	assign	adr_check=i_wb_adr[adr_wb_nb-1:3]==0&&i_wb_adr[0]==0;
     `endif
     `ifdef wb_32bit
-    assign	adr_check=i_wb_adr[adr_wb_nb-1:4]==0&&i_wb_adr[1:0]==0;
+    	assign	adr_check=i_wb_adr[adr_wb_nb-1:4]==0&&i_wb_adr[1:0]==0;
     `endif
     `ifdef wb_64bit
-     assign	adr_check=i_wb_adr[adr_wb_nb-1:5]==0&&i_wb_adr[2:0]==0;
+     	assign	adr_check=i_wb_adr[adr_wb_nb-1:5]==0&&i_wb_adr[2:0]==0;
     `endif
     
     reg [3:0] state;  //state machine
