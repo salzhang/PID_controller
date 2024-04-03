@@ -35,46 +35,47 @@ input	i_wb_we,
 
 input	[adr_wb_nb-1:0]i_wb_adr, //16 bit address
 input	[wb_nb-1:0]i_wb_data,    //Write port
-
-output	o_wb_ack,
 output	[wb_nb-1:0]o_wb_data,    //Read port
+output	o_wb_ack,
+
 
 //Direct input & output
-input [31:0]i_pv, //Input: present value
-output[31:0]o_mv  //Output: manipulation value
+input [15:0]i_pv, //Input: present value
+output[31:0]o_mv,  //Output: manipulation value
+output [4:0] o_invalid  //If overflow happens, o_invalid is high, meaning current o_mv is invalid
 );
-    reg	[15:0]kp,ki,kd,sv;
-    PID PID_core_wb(.clk(i_clk),.rst(i_rst),.Kp_in(kp),.Ki_in(ki),.Kd_in(kd),.SV_in(sv),.PV_in(i_pv),.MV(o_mv),.of());
-    
+	reg	[15:0]kp,ki,kd,sv;
+	PID PID_core_wb(.clk(i_clk),.rst(i_rst),.Kp_in(kp),.Ki_in(ki),.Kd_in(kd),.SV_in(sv),.PV_in(i_pv),.MV(o_mv),.of(o_invalid));
+
     reg	wack;	//write acknowledgement
     reg rack;   //read  acknowledgement
     wire	we;	// write enable
     assign	we=i_wb_cyc&i_wb_we&i_wb_stb;
     wire	re;	//read enable
     assign	re=i_wb_cyc&(~i_wb_we)&i_wb_stb;
-    reg [wb_nb-1:0]rdata_reg;
+	reg [wb_nb-1:0]rdata_reg;
 
-    wire [wb_nb-1:0]rdata[0:3];	//wishbone read data array
-    `ifdef 	wb_16bit
-	assign	rdata[0]=kp;
-	assign	rdata[1]=ki;
-	assign	rdata[2]=kd;
-	assign	rdata[3]=sv;
-    `endif
+	wire	[wb_nb-1:0]rdata[0:3];	//wishbone read data array
+	`ifdef	wb_16bit
+		assign	rdata[0]=kp;
+		assign	rdata[1]=ki;
+		assign	rdata[2]=kd;
+		assign	rdata[3]=sv;
+	`endif
 
-    `ifdef	wb_32bit
-	assign	rdata[0]={{16{kp[15]}},kp};
-	assign	rdata[1]={{16{ki[15]}},ki};
-	assign	rdata[2]={{16{kd[15]}},kd};
-	assign	rdata[3]={{16{sv[15]}},sv};
-    `endif
+	`ifdef	wb_32bit
+		assign	rdata[0]={{16{kp[15]}},kp};
+		assign	rdata[1]={{16{ki[15]}},ki};
+		assign	rdata[2]={{16{kd[15]}},kd};
+		assign	rdata[3]={{16{sv[15]}},sv};
+	`endif
 
-    `ifdef	wb_64bit
-	assign	rdata[0]={{48{kp[15]}},kp};
-	assign	rdata[1]={{48{ki[15]}},ki};
-	assign	rdata[2]={{48{kd[15]}},kd};
-	assign	rdata[3]={{48{sv[15]}},sv};
-    `endif
+	`ifdef	wb_64bit
+		assign	rdata[0]={{48{kp[15]}},kp};
+		assign	rdata[1]={{48{ki[15]}},ki};
+		assign	rdata[2]={{48{kd[15]}},kd};
+		assign	rdata[3]={{48{sv[15]}},sv};
+	`endif
 
     wire	[1:0]adr; // address for write & read
     `ifdef wb_16bit
@@ -99,10 +100,10 @@ output[31:0]o_mv  //Output: manipulation value
     `endif
     
     reg [3:0] state;  //state machine
-    parameter Idle = 4'b0001;
-    parameter Write = 4'b0010;
-    parameter Read = 4'b0100;
-	parameter Done = 4'b1000;
+    localparam Idle = 4'b0001;
+    localparam Write = 4'b0010;
+    localparam Read = 4'b0100;
+	localparam Done = 4'b1000;
 
     always@(posedge i_clk)
 	if(!i_rst)begin
@@ -113,6 +114,7 @@ output[31:0]o_mv  //Output: manipulation value
 		ki<=0;
 		kd<=0;
 		sv<=0;
+		rdata_reg<=0;
 	end
 	else begin
 		case(state)
